@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 ##############################################################################
 #
-# Copyright (c) 2008-2009, Gustavo Narea <me@gustavonarea.net>.
-# All Rights Reserved.
+# Derived from repoze.what.plugins.sql which is 
+#   Copyright (c) 2008-2009, Gustavo Narea <me@gustavonarea.net>.
+#   All Rights Reserved.
 #
 # This software is subject to the provisions of the BSD-like license at
 # http://www.repoze.org/LICENSE.txt.  A copy of the license should accompany
@@ -60,9 +61,9 @@ field and table names involved:
 
 """
 
-from sqlalchemy.exceptions import SQLAlchemyError
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm import eagerload
+# Relies on the shakefu fork of mongoalchemy
+from mongoalchemy.exceptions import NoResultFound
+# from sqlalchemy.orm import eagerload
 
 
 from repoze.what.adapters import BaseSourceAdapter, SourceError
@@ -74,7 +75,7 @@ __all__ = ['SqlGroupsAdapter', 'SqlPermissionsAdapter',
 class _BaseSqlAdapter(BaseSourceAdapter):
     """Base class for SQL source adapters."""
 
-    def __init__(self, parent_class, children_class, dbsession):
+    def __init__(self, parent_class, children_class, dbsession=None):
         """
         Create an SQL source adapter.
 
@@ -91,7 +92,7 @@ class _BaseSqlAdapter(BaseSourceAdapter):
     # BaseSourceAdapter
     def _get_all_sections(self):
         sections = {}
-        sections_as_rows = self.dbsession.query(self.parent_class).all()
+        sections_as_rows = self.parent_class.query().all()
         for section_as_row in sections_as_rows:
             section_name = getattr(section_as_row,
                                    self.translations['section_name'])
@@ -120,12 +121,10 @@ class _BaseSqlAdapter(BaseSourceAdapter):
 
     # BaseSourceAdapter
     def _exclude_items(self, section, items):
-        self.dbsession.begin(subtransactions=True)
         item, included_items = self._get_items_as_rowset(section)
         for item_to_exclude in items:
             item_as_row = self._get_item_as_row(item_to_exclude)
-            included_items.remove(item_as_row)
-        self.dbsession.commit()
+            item_as_row.delete()
 
     # BaseSourceAdapter
     def _item_is_included(self, section, item):
@@ -133,27 +132,22 @@ class _BaseSqlAdapter(BaseSourceAdapter):
 
     # BaseSourceAdapter
     def _create_section(self, section):
-        self.dbsession.begin(subtransactions=True)
         section_as_row = self.parent_class()
         # Creating the section with an empty set of items:
         setattr(section_as_row, self.translations['section_name'], section)
         setattr(section_as_row, self.translations['items'], [])
-        self.dbsession.add(section_as_row)
-        self.dbsession.commit()
+        section_as_row.save()
 
     # BaseSourceAdapter
     def _edit_section(self, section, new_section):
-        self.dbsession.begin(subtransactions=True)
         section_as_row = self._get_section_as_row(section)
         setattr(section_as_row, self.translations['section_name'], new_section)
-        self.dbsession.commit()
+        section_as_row.save()
 
     # BaseSourceAdapter
     def _delete_section(self, section):
-        self.dbsession.begin(subtransactions=True)
         section_as_row = self._get_section_as_row(section)
-        self.dbsession.delete(section_as_row)
-        self.dbsession.commit()
+        section_as_row.delete()
 
     # BaseSourceAdapter
     def _section_exists(self, section):
@@ -175,7 +169,7 @@ class _BaseSqlAdapter(BaseSourceAdapter):
         # "field" usually equals to {tg_package}.model.Group.group_name
         # or {tg_package}.model.Permission.permission_name
         field = getattr(self.parent_class, self.translations['section_name'])
-        query = self.dbsession.query(self.parent_class)
+        query = self.parent_class.query()
         try:
             section_as_row = query.filter(field==section_name).one()
         except NoResultFound:
@@ -194,8 +188,8 @@ class _BaseSqlAdapter(BaseSourceAdapter):
         """
         # "field" usually equals to {tg_package}.model.User.user_name
         # or {tg_package}.model.Group.group_name
-        field = getattr(self.children_class, self.translations['item_name'])
-        query = self.dbsession.query(self.children_class).options(eagerload(self.translations['sections']))
+        field = getattr(, self.translations['item_name'])
+        query = self.children_class.query() #.options(eagerload(self.translations['sections']))
         try:
             item_as_row = query.filter(field==item_name).one()
         except NoResultFound:
@@ -280,7 +274,7 @@ class SqlGroupsAdapter(_BaseSqlAdapter):
     
     """
 
-    def __init__(self, group_class, user_class, dbsession):
+    def __init__(self, group_class, user_class, dbsession=None):
         """
         Create an SQL groups source adapter.
     
@@ -371,7 +365,7 @@ class SqlPermissionsAdapter(_BaseSqlAdapter):
     
     """
 
-    def __init__(self, permission_class, group_class, dbsession):
+    def __init__(self, permission_class, group_class, dbsession=None):
         """
         Create an SQL permissions source adapter.
         
@@ -409,7 +403,7 @@ class SqlPermissionsAdapter(_BaseSqlAdapter):
 #{ Utilities
 
 
-def configure_sql_adapters(user_class, group_class, permission_class, session,
+def configure_sql_adapters(user_class, group_class, permission_class, session=None,
                            group_translations={}, permission_translations={}):
     """
     Configure and return group and permission adapters that share the same model.

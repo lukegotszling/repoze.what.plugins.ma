@@ -188,7 +188,7 @@ class _BaseSqlAdapter(BaseSourceAdapter):
         """
         # "field" usually equals to {tg_package}.model.User.user_name
         # or {tg_package}.model.Group.group_name
-        field = getattr(, self.translations['item_name'])
+        field = getattr(self.children_class, self.translations['item_name'])
         query = self.children_class.query() #.options(eagerload(self.translations['sections']))
         try:
             item_as_row = query.filter(field==item_name).one()
@@ -304,7 +304,7 @@ class SqlGroupsAdapter(_BaseSqlAdapter):
                 return set()
             credentials['repoze.what.userobj'] = user
         
-        user_memberships = getattr(user, self.translations['sections'])
+        user_memberships = getattr(user, self.translations['sections'], [])
         return set([getattr(group, self.translations['section_name'])
                     for group in user_memberships])
 

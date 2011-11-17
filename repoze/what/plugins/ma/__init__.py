@@ -15,7 +15,7 @@
 
 """SQL plugin for repoze.what based on SQLAlchemy."""
 
-from repoze.what.plugins.sql.adapters import SqlGroupsAdapter, \
+from repoze.what.plugins.ma.adapters import SqlGroupsAdapter, \
                                              SqlPermissionsAdapter, \
                                              configure_sql_adapters
 
